@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+  namespace: example
+spec:
+  serviceName: rabbitmq-internal
+  revisionHistoryLimit: 3
+  updateStrategy:
+    type: RollingUpdate
+  replicas: 3
+  selector: 
+    matchLabels:
+          app: rabbitmq
+  template:
+    metadata:
+      name: rabbitmq
+      labels:
+        app: rabbitmq
+    spec:
+      serviceAccountName: rabbitmq
+      terminationGracePeriodSeconds: 10
+
+      containers:        
+      - name: rabbitmq
+        image: a8uhnf/rabbitmq-cluster:0.0.1
+        ports:
+        - containerPort: 4369
+        - containerPort: 5672
+        - containerPort: 25672
+        - containerPort: 15672
+        envFrom:
+         - configMapRef:
+             name: rabbitmq-cfg
+        env:
+          - name: HOSTNAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: RABBITMQ_USE_LONGNAME
+            value: "true"
+          - name: MY_POD_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.name
+          - name: K8S_SERVICE_NAME
+            value: "rabbitmq-internal"
+          - name: MY_POD_SERVICE_ACCOUNT
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.serviceAccountName
+          - name: RABBITMQ_BASIC_AUTH
+            value: "guest"
+          - name: RABBITMQ_NODENAME
+            value: rabbit@$(MY_POD_NAME).$(K8S_SERVICE_NAME).$(NAMESPACE).svc.cluster.local
+          - name: K8S_SERVICE_NAME
+            value: "rabbitmq-internal"
+          - name: RABBITMQ_DEFAULT_USER
+            value: "guest"
+          - name: RABBITMQ_DEFAULT_PASS
+            value: "guest"
+          - name: RABBITMQ_ERLANG_COOKIE 
+            value: secret_cookie
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+        resources:
+          requests:
+            memory: "800Mi"
+            cpu: "0.4"
+          limits:
+            memory: "900Mi"
+            cpu: "0.6"
+        livenessProbe:
+          exec:
+            command: ["rabbitmqctl", "status"]
+          initialDelaySeconds: 15
+          periodSeconds: 5
+        readinessProbe:
+          exec:
+            command: ["rabbitmqctl", "status"]
+          initialDelaySeconds: 15
+          periodSeconds: 5
+        
